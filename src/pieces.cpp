@@ -1,5 +1,4 @@
 #include "pieces.h"
-#include "pieces.h"
 #include <cmath>
 
 //creating map for piece name to filename like a hashmap of sorts
