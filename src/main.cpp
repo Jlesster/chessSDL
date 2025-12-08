@@ -1,43 +1,34 @@
-#include <SDL3/SDL.h>
+#define SDL_MAIN_USE_CALLBACKS
+#include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_init.h>
-#include <SDL3/SDL_log.h>
-#include <SDL3/SDL_timer.h>
 #include <SDL3/SDL_video.h>
+#include <SDL3/SDL_main.h>
+#include <SDL3/SDL.h>
 
-int main() {
-  SDL_SetHint(SDL_HINT_VIDEODRIVER, "wayland,x11");
+SDL_Window* window;
+SDL_GPUDevice* device;
 
-  if(!SDL_Init(SDL_INIT_VIDEO)) {
-    SDL_Log("Failed");
-    return 1;
-  }
-
-  SDL_Window* window = SDL_CreateWindow("Test Window", 720, 480, 0);
-
-  if(!window) {
-    SDL_Log("Error creating window %s ", SDL_GetError());
-    return 2;
-  };
-
-  SDL_ShowWindow(window);
-
-  SDL_Event event;
-  bool running = true;
-  Uint32 startTime = SDL_GetTicks();
-
-  while(running) {
-    while(SDL_PollEvent(&event)) {
-      if(event.type == SDL_EVENT_QUIT) {
-        running = false;
-      }
-    }
-    if(SDL_GetTicks() - startTime > 4000) {
-      running = false;
-    }
-    SDL_Delay(16);
-  }
-  SDL_DestroyWindow(window);
-  SDL_Quit();
-
-  return 0;
+SDL_AppResult SDL_AppInit( void **appstate, int argc, char **argv) {
+  window = SDL_CreateWindow("Triangle test", 720, 480, 0);
+  device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_MSL, true, NULL);
+  SDL_ClaimWindowForGPUDevice(device, window);
+  return SDL_APP_CONTINUE;
 }
+SDL_AppResult SDL_AppIterate(void *appstate) {
+  return SDL_APP_CONTINUE;
+}
+SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
+  if(event->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+    return SDL_APP_SUCCESS;
+  }
+  return SDL_APP_CONTINUE;
+}
+void SDL_AppQuit(void *appstate, SDL_AppResult result) {
+  SDL_DestroyGPUDevice(device);
+  SDL_DestroyWindow(window);
+}
+SDL_GPUDevice* SDL_CreateGPUDevice(
+  SDL_GPUShaderFormat format_flags,
+  bool debug_mode,
+  const char *name
+);
