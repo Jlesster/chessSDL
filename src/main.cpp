@@ -1,15 +1,22 @@
+#include "pieceRenderer.h"
+#include <SDL3/SDL_render.h>
+#include <SDL3/SDL_surface.h>
 #define SDL_MAIN_USE_CALLBACKS
 #include <vector>
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_init.h>
+#include <SDL3_image/SDL_image.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
+Board board;
 SDL_Window* window;
 SDL_GPUDevice* device;
 SDL_GPUBuffer* vBuffer;
+SDL_Renderer* renderer;
+PieceRenderer* pieceRenderer;
 SDL_GPUTransferBuffer* transferBuffer;
 SDL_GPUGraphicsPipeline* gPipeline;
 
@@ -38,6 +45,14 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   if(!window) {
     SDL_Log("Err init window: %s", SDL_GetError());
     return SDL_APP_FAILURE;
+  }
+
+  SDL_Surface* icon = IMG_Load("assets/pieces/PawnWHT.png");
+  if(icon) {
+    SDL_SetWindowIcon(window, icon);
+    SDL_DestroySurface(icon);
+  } else {
+    SDL_Log("Warning: Could not load app icon: %s", SDL_GetError());
   }
 
   device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, false, NULL);
@@ -78,8 +93,10 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
       vertices.push_back({x0, y1, 0.0f, r, g, b, 1.0f}); //bottom left
     }
   }
-
   vertexCount = static_cast<Uint32>(vertices.size());
+
+  pieceRenderer = new PieceRenderer(renderer, squareSize);
+
 
   //bufferInfo below
   SDL_GPUBufferCreateInfo bufferInfo{};
@@ -166,6 +183,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     return SDL_APP_FAILURE;
   }
 
+
   SDL_GPUGraphicsPipelineCreateInfo pInfo{};
   pInfo.vertex_shader = vertexShader;
   pInfo.fragment_shader = fragmentShader;
@@ -241,6 +259,8 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   bufferBindings[0].buffer = vBuffer;
   bufferBindings[0].offset = 0;
   SDL_BindGPUVertexBuffers(rPass, 0, bufferBindings, 1);
+
+  pieceRenderer->draw(board);
 
   SDL_DrawGPUPrimitives(
     rPass,
