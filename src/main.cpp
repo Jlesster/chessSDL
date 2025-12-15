@@ -72,7 +72,10 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
       vertices.push_back({x0, y0, 0.0f, r, g, b, 1.0f}); //top left
       vertices.push_back({x1, y0, 0.0f, r, g, b, 1.0f}); //top right
       vertices.push_back({x0, y1, 0.0f, r, g, b, 1.0f}); //bottom left
+
+      vertices.push_back({x1, y0, 0.0f, r, g, b, 1.0f}); //top right
       vertices.push_back({x1, y1, 0.0f, r, g, b, 1.0f}); //bottom right
+      vertices.push_back({x0, y1, 0.0f, r, g, b, 1.0f}); //bottom left
     }
   }
 
@@ -167,9 +170,9 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   pInfo.vertex_shader = vertexShader;
   pInfo.fragment_shader = fragmentShader;
 
-  // pInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+  pInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
 
-  pInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP;
+  // pInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP;
 
   SDL_GPUVertexBufferDescription vBufferDescriptions[1];
   vBufferDescriptions[0].slot = 0;
@@ -198,8 +201,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   cTargetDescriptions[0].blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
   cTargetDescriptions[0].blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
   cTargetDescriptions[0].blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
-  cTargetDescriptions[0].blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
   cTargetDescriptions[0].blend_state.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+  cTargetDescriptions[0].blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
   cTargetDescriptions[0].blend_state.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
   cTargetDescriptions[0].format = SDL_GetGPUSwapchainTextureFormat(device, window);
 
