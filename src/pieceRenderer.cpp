@@ -1,6 +1,7 @@
 #include "pieceRenderer.h"
 #include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_log.h>
+#include <SDL3/SDL_oldnames.h>
 #include <SDL3/SDL_render.h>
 #include <SDL3/SDL_stdinc.h>
 #include <SDL3/SDL_video.h>
@@ -54,8 +55,10 @@ PieceRenderer::PieceRenderer(SDL_GPUDevice* device, SDL_Window* window)
     auto load = [&](char c, const char* path) {
       SDL_Surface* surf = IMG_Load(path);
       if(!surf) {
+        SDL_Log("Failed to load %s: %s", path, SDL_GetError());
         return;
       }
+      SDL_Log("Loaded %s: %dx%d, format: %s", path, surf->w, surf->h, SDL_GetPixelFormatName(surf->format));
 
       SDL_GPUTextureCreateInfo info{};
       info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
@@ -66,6 +69,11 @@ PieceRenderer::PieceRenderer(SDL_GPUDevice* device, SDL_Window* window)
       info.usage  = SDL_GPU_TEXTUREUSAGE_SAMPLER;
 
       SDL_GPUTexture* tex = SDL_CreateGPUTexture(device, &info);
+      if(!tex) {
+        SDL_Log("ERROR: Failed to create GPU texture for %c", c);
+      } else {
+        SDL_Log("Created GPU texture for piece '%c': %p", c, (void*)tex);
+      }
       textures[(unsigned char)c] = tex;
 
       SDL_GPUTransferBufferCreateInfo tbInfo{};
@@ -81,12 +89,17 @@ PieceRenderer::PieceRenderer(SDL_GPUDevice* device, SDL_Window* window)
       SDL_GPUTextureTransferInfo src{};
       src.transfer_buffer = tBuffer;
       src.offset = 0;
+      src.pixels_per_row = surf->w;
+      src.rows_per_layer = surf->h;
 
       SDL_GPUTextureRegion dstRegion{};
       dstRegion.texture = tex;
       dstRegion.w = surf->w;
       dstRegion.h = surf->h;
       dstRegion.d = 1;
+      dstRegion.x = 0;
+      dstRegion.y = 0;
+      dstRegion.z = 0;
 
       SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(device);
       SDL_GPUCopyPass* cPass = SDL_BeginGPUCopyPass(cmd);
