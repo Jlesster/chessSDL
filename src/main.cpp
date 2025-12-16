@@ -55,7 +55,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     SDL_Log("Warning: Could not load app icon: %s", SDL_GetError());
   }
 
-  device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, false, NULL);
+  device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
   if(!device) {
     SDL_Log("Err init GPU device: %s", SDL_GetError());
     return SDL_APP_FAILURE;
@@ -95,7 +95,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   }
   vertexCount = static_cast<Uint32>(vertices.size());
 
-  pieceRenderer = new PieceRenderer(renderer, squareSize);
+  pieceRenderer = new PieceRenderer(device, window);
 
 
   //bufferInfo below
@@ -185,8 +185,13 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
 
   SDL_GPUGraphicsPipelineCreateInfo pInfo{};
+  SDL_zero(pInfo);
   pInfo.vertex_shader = vertexShader;
   pInfo.fragment_shader = fragmentShader;
+  pInfo.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+  pInfo.rasterizer_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
+  pInfo.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
+  pInfo.multisample_state.sample_count= SDL_GPU_SAMPLECOUNT_1;
 
   pInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
 
@@ -216,18 +221,23 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
   SDL_GPUColorTargetDescription cTargetDescriptions[1];
   cTargetDescriptions[0] = {};
-  cTargetDescriptions[0].blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
-  cTargetDescriptions[0].blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
-  cTargetDescriptions[0].blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
-  cTargetDescriptions[0].blend_state.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
-  cTargetDescriptions[0].blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-  cTargetDescriptions[0].blend_state.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+  cTargetDescriptions[0].blend_state.enable_blend = false;
+  // cTargetDescriptions[0].blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
+  // cTargetDescriptions[0].blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+  // cTargetDescriptions[0].blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+  // cTargetDescriptions[0].blend_state.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+  // cTargetDescriptions[0].blend_state.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+  // cTargetDescriptions[0].blend_state.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
   cTargetDescriptions[0].format = SDL_GetGPUSwapchainTextureFormat(device, window);
 
   pInfo.target_info.num_color_targets = 1;
   pInfo.target_info.color_target_descriptions = cTargetDescriptions;
 
   gPipeline = SDL_CreateGPUGraphicsPipeline(device, &pInfo);
+  if(!gPipeline) {
+    SDL_Log("Err init gPipeline: %s", SDL_GetError());
+    return SDL_APP_FAILURE;
+  }
 
   SDL_ReleaseGPUShader(device, vertexShader);
   SDL_ReleaseGPUShader(device, fragmentShader);
@@ -238,9 +248,13 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 SDL_AppResult SDL_AppIterate(void *appstate) {
   (void)appstate;
 
-  SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(device);
+  SDL_GPUCommandBuffer* uploadCmd = SDL_AcquireGPUCommandBuffer(device);
+  pieceRenderer->updateVertices(uploadCmd, board);
+  SDL_SubmitGPUCommandBuffer(uploadCmd);
   SDL_GPUTexture* sTexture;
   Uint32 width, height;
+
+  SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(device);
 
   if(!SDL_WaitAndAcquireGPUSwapchainTexture(cmd, window, &sTexture, &width, &height)) {
     SDL_SubmitGPUCommandBuffer(cmd);
@@ -254,13 +268,12 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   cTargetInfo.texture = sTexture;
 
   SDL_GPURenderPass* rPass = SDL_BeginGPURenderPass(cmd, &cTargetInfo, 1, NULL);
+
   SDL_BindGPUGraphicsPipeline(rPass, gPipeline);
   SDL_GPUBufferBinding bufferBindings[1];
   bufferBindings[0].buffer = vBuffer;
   bufferBindings[0].offset = 0;
   SDL_BindGPUVertexBuffers(rPass, 0, bufferBindings, 1);
-
-  pieceRenderer->draw(board);
 
   SDL_DrawGPUPrimitives(
     rPass,
@@ -269,6 +282,7 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     0,
     0
   );
+  pieceRenderer->draw(rPass);
   SDL_EndGPURenderPass(rPass);
   SDL_SubmitGPUCommandBuffer(cmd);
 
@@ -289,6 +303,8 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 void SDL_AppQuit(void *appstate, SDL_AppResult result) {
   (void)appstate;
   (void)result;
+
+  delete pieceRenderer;
 
   SDL_ReleaseGPUBuffer(device, vBuffer);
   SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
